@@ -1,0 +1,8 @@
+,category,id,esdlType,name,power_min,power_max,power,efficiency,investment_cost,o_m_cost,marginal_cost,carrier_in,carrier_out,profiles_in,profiles_out,opera_equivalent
+0,Consumer,7a45670d-5aba-405a-94e6-47ce6c141435,MobilityDemand,MobilityDemand_7a45,,,0.16273703748245244,1.35454,,,,Hydrogen,,5.132075214046532,, H2 auto
+1,Consumer,c7a59334-5290-41dc-98b4-95a842344741,MobilityDemand,MobilityDemand_c7a5,,,1.3465608767453334,1.34274,,,,Hydrogen,,42.46514380904011,,H2 truck with energy consumption reduction
+2,Consumer,ac31f9cb-9168-4b42-b620-e5d90e6c738d,MobilityDemand,MobilityDemand_ac31,,,0.547974648266366,0.03104,,,,Hydrogen,,17.280928507727822,,H2 van
+3,Conversion,b243c807-ce6a-4625-8d24-7c2b57ac1ce3,Electrolyzer,Electrolyzer_b243,42000000.0,51000000.0,0.01,0.66,0.126,10.0,23.58,Electricity,Hydrogen,,,H2 Large-scale electrolyser
+4,Conversion,bb6f51a0-812f-4d9e-b23f-5259c54181d4,GasConversion,GasConversion_bb6f,0.0,11.716000000000001,3.6900000000000004e-07,81.0,9.0,222.0,66.2,Natural Gas,Hydrogen,,,H2 uit SMR met CCS plus
+5,Producer,64119197-a2d1-49d9-971a-08b978b99448,WindTurbine,WindTurbine_6411,20000000.0,20000000.0,0.003,1.0,0.14757989999999999,4.1759625,0.0,,Electricity,,,Wind op Zee band 1
+6,Producer,37e43704-0b9e-49a3-97da-99f25c50ff7e,PVPark,PVPark_37e4,57.6,66.918,0.0113328,1.0,,,0.0,,Electricity,,,Solar-PV Residential
