@@ -1,0 +1,13 @@
+,category,id,esdlType,name,power_min,power_max,power,efficiency,investment_cost,o_m_cost,variable_o_m_cost,marginal_cost,carrier_in,carrier_out,profiles_in,profiles_out,storage_capacity,storage_charge_efficiency,storage_discharge_efficiency,storage_slow_loadtime,storage_fast_loadtime,storage_slow_unloadtime,storage_fast_unloadtime,storage_losses_perhour,opera_equivalent
+0,Consumer,7a45670d-5aba-405a-94e6-47ce6c141435,MobilityDemand,MobilityDemand_h2Car_7a45,,,3.4103974583375876,1.0,,,,,Hydrogen,,107.55029424613232,,,,,,,,,, H2 auto
+1,Consumer,c7a59334-5290-41dc-98b4-95a842344741,MobilityDemand,MobilityDemand_h2Truck_ac31,,,4.240829575684114,1.0,,,,,Hydrogen,,133.73880149877195,,,,,,,,,,H2 truck with energy consumption reduction
+2,Consumer,ac31f9cb-9168-4b42-b620-e5d90e6c738d,MobilityDemand,MobilityDemand_h2Van_c7a5,,,1.6235601974300387,1.0,,,,,Hydrogen,,51.20059438615282,,,,,,,,,,H2 van
+3,Conversion,b243c807-ce6a-4625-8d24-7c2b57ac1ce3,Electrolyzer,Electrolyzer_b243,16.0,25.0,1e-09,1.0,700.0,20.0,,23.58,Electricity,Hydrogen,,,,,,,,,,,H2 Large-scale electrolyser
+4,Producer,a3ac6459-54f5-4345-95bd-3384d1a976e1,Import,Import_a3ac,,,1e-09,1.0,,,,,,Hydrogen,,,,,,,,,,,Import H2 to H2 domestic
+5,Producer,64119197-a2d1-49d9-971a-08b978b99448,WindTurbine,WindTurbine_6411,10.0,15.000000000000002,1e-09,1.0,1103.0,10.0,2.5700000004,0.0,,Electricity,,,,,,,,,,,Wind op Zee band 1
+6,Producer,37e43704-0b9e-49a3-97da-99f25c50ff7e,PVPark,PVPark_37e4,35.0,58.00000000000001,1e-09,1.0,871.76,12.0,,0.0,,Electricity,,,,,,,,,,,Solar-PV Residential
+7,Storage,082ce57c-5559-42f9-8f4f-51a11195994b,Battery,Battery_082c,,,,1.0,176.0,0.003514,0.7250000004,,Electricity,,,,0.1799548560361152,0.8475,1.0,0.02044941545865317,0.02044941545865317,0.02044941545865317,0.02044941545865317,2.73972999996e-05,
+8,Conversion,f521a519-9c80-4661-a66c-e6a035adce2c,PowerPlant,NuclearPowerPlant_f521,0.0,8.000000000000002,1e-09,1.0,6318.0,77.0,2.4699996,5.450538826735271,,Electricity,,,,,,,,,,,REF Kernenergie  IBO 7500u 2017
+9,Consumer,b8dfbde7-f92c-49d4-ad14-e24c7e0d860d,MobilityDemand,MobilityDemand_eTruck_b8df,,,,1.0,,,,,Electricity,,0.0,,,,,,,,,,REF Finale vraag verkeer th
+10,Consumer,3b7d3605-7617-4840-afd3-14bc761b7a38,MobilityDemand,MobilityDemand_eVan_3b7d,,,,1.0,,,,,Electricity,,0.0,,,,,,,,,,REF Finale vraag verkeer th
+11,Consumer,e584f0f7-3a7c-49a1-a0de-6609abf5166b,MobilityDemand,MobilityDemand_eCar_e584,,,,1.0,,,,,Electricity,,0.0,,,,,,,,,,REF Finale vraag verkeer th
