@@ -41,69 +41,61 @@ class Opera(Model):
             model_run_id=model_run_id,
         )
 
-    # TODO: import ESDLs
-    def import_esdls(self, config: OperaAdapterConfig, model_run_id):
-        self.input_esdl_1: str
-        self.input_esdl_2: str
+    def start_aimms_model(self, config: OperaAdapterConfig, model_run_id):
+        if not config.input_esdl_file_path_1 or not config.input_esdl_file_path_2:
+            return ModelRunInfo(
+                model_run_id=model_run_id,
+                state=ModelState.ERROR,
+                reason="ESDL file paths cannot be None"
+            )        
+            
+        input_esdl_1: str
+        input_esdl_2: str
+
+        # load the first ESDL file
         if config.input_esdl_file_path_1[:7] == 'file://':
             logger.info(f"Loading ESDL from local disk at {config.input_esdl_file_path_1[7:]}")
             # local file
-            with open(config.input_esdl_file_path_1[7:], 'r') as file:
-                input_esdl_1 = file.read()
+            with open(config.input_esdl_file_path_1[7:], 'r') as file_1:
+                input_esdl_1 = file_1.read()
         else: # assume minio
             try:
                 logger.info(f"Loading ESDL from Inter Model Storage (Minio) at {config.input_esdl_file_path_1}")
-                input_esdl_bytes = self.load_from_minio(config.input_esdl_file_path_1)
-                if input_esdl_bytes is None:
-                    logger.error(f"Error retrieving {config.input_esdl_file_path_1} from Minio")
-                    return ModelRunInfo(
-                        model_run_id=model_run_id,
-                        state=ModelState.ERROR,
-                        reason=f"Error retrieving {config.input_esdl_file_path_1} from Minio"
-                    )
-                else:
-                    input_esdl_1 = input_esdl_bytes.decode('utf-8')
-            except S3Error as e:
-                logger.error(f"Error retrieving {config.input_esdl_file_path_1} from Minio")
+                input_esdl_bytes_1 = self.load_from_minio(config.input_esdl_file_path_1)
+                if input_esdl_bytes_1 is None:
+                    raise ValueError(f"Error retrieving {config.input_esdl_file_path_1} from Minio")
+                input_esdl_1 = input_esdl_bytes_1.decode('utf-8')
+            except (S3Error, ValueError) as e:
+                logger.error(str(e))
                 return ModelRunInfo(
                     model_run_id=model_run_id,
                     state=ModelState.ERROR,
-                    reason=f"Error retrieving {config.input_esdl_file_path_1} from Minio"
+                    reason=str(e)
                 )
 
+        # load the second ESDL file
         if config.input_esdl_file_path_2[:7] == 'file://':
             logger.info(f"Loading ESDL from local disk at {config.input_esdl_file_path_2[7:]}")
             # local file
-            with open(config.input_esdl_file_path_2[7:], 'r') as file:
-                input_esdl_1 = file.read()
+            with open(config.input_esdl_file_path_2[7:], 'r') as file_2:
+                input_esdl_2 = file_2.read()
         else: # assume minio
             try:
                 logger.info(f"Loading ESDL from Inter Model Storage (Minio) at {config.input_esdl_file_path_2}")
-                input_esdl_bytes = self.load_from_minio(config.input_esdl_file_path_2)
-                if input_esdl_bytes is None:
-                    logger.error(f"Error retrieving {config.input_esdl_file_path_2} from Minio")
-                    return ModelRunInfo(
-                        model_run_id=model_run_id,
-                        state=ModelState.ERROR,
-                        reason=f"Error retrieving {config.input_esdl_file_path_2} from Minio"
-                    )
-                else:
-                    input_esdl_2 = input_esdl_bytes.decode('utf-8')
-            except S3Error as e:
-                logger.error(f"Error retrieving {config.input_esdl_file_path_2} from Minio")
+                input_esdl_bytes_2 = self.load_from_minio(config.input_esdl_file_path_2)
+                if input_esdl_bytes_2 is None:
+                    raise ValueError(f"Error retrieving {config.input_esdl_file_path_2} from Minio")
+                input_esdl_2 = input_esdl_bytes_2.decode('utf-8')
+            except (S3Error, ValueError) as e:
+                logger.error(str(e))
                 return ModelRunInfo(
                     model_run_id=model_run_id,
                     state=ModelState.ERROR,
-                    reason=f"Error retrieving {config.input_esdl_file_path_2} from Minio"
+                    reason=str(e)
                 )
 
-        print(f'Input ESDL 1:{self.input_esdl_1}')
-        print(f'Input ESDL 2: {self.input_esdl_2}')
-
-
-    
-    def start_aimms_model(self, config: OperaAdapterConfig, model_run_id):
-
+        print(f'Input ESDL 1:{input_esdl_1}')
+        print(f'Input ESDL 2: {input_esdl_2}')
         # convert ESDL to MySQL
         # logger.info("Converting ESDL using Universal Link")
         # ul = UniversalLink(host=EnvSettings.db_host(), database=EnvSettings.db_name(),
@@ -111,8 +103,8 @@ class Opera(Model):
         # success, error = ul.esdl_to_db(input_esdl)
         parser = OperaESDLParser()
         try:
-            esdl_in_dataframe, carriers = parser.parse(esdl_string=self.input_esdl_1)
-            esdl_kpi = parser.parse_2(esdl_string=self.input_esdl_2) # kindly import the code related to KPI-related ESDL into the esdl_parser.py file
+            esdl_in_dataframe, carriers = parser.parse(esdl_string=input_esdl_1)
+            esdl_kpi, hourly_electricity_price  = parser.parse_2(esdl_string=input_esdl_2) # Import the code related to KPI-related ESDL into the esdl_parser.py file
         except Exception as e:
             logger.error(f"Parse exception for ESDL input: {e}")
             return ModelRunInfo(
@@ -124,7 +116,11 @@ class Opera(Model):
         copy_clean_access_database(EnvSettings.clean_access_database(), EnvSettings.access_database())
         logger.info("Importing ESDL into Opera database")
         oai = OperaAccessImporter()
-        oai.start_import(esdl_data_frame=esdl_in_dataframe, carriers=carriers, access_database=EnvSettings.access_database())
+        oai.start_import(esdl_data_frame=esdl_in_dataframe, 
+                         carriers=carriers, 
+                         esdl_kpi = esdl_kpi,
+                         hourly_electricity_price = hourly_electricity_price,
+                         access_database=EnvSettings.access_database())
         # start aimms via subprocess
         print(f"AIMMS binary at {EnvSettings.aimms_exe_path()}")
         print(f"AIMMS model at {EnvSettings.aimms_model_path()}")
@@ -153,11 +149,9 @@ class Opera(Model):
             #    running = False
 
         # wait for aimms to finish
-        print(aimms_exe_path, aimms_model_path)
-        # get output
         if aimms.returncode == 0:
             logger.info("AIMMS has finished, collecting results...")
-            esh = parser.get_energy_system_Hander()
+            esh = parser.get_energy_system_Handler()
             orp = OperaResultsProcessor(input_df=esdl_in_dataframe,
                                         esh=esh,
                                         output_path=EnvSettings.opera_output_folder())

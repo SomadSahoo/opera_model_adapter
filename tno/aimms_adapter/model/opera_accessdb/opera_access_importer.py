@@ -5,7 +5,6 @@ from typing import TypedDict
 import pandas as pd
 import pandas.io.sql as psql
 import sqlalchemy as sa
-from sqlalchemy.pool import NullPool
 import time
 import gc
 import pyodbc
@@ -58,18 +57,22 @@ class OperaAccessImporter:
     year: int = 2030
     scenario = 'MMvIB'
     default_sector = 'Energie'
-    df: pd.DataFrame = None  # df with ESDL as a table
-    carriers: pd.DataFrame = None  # df with carriers and prices
-    engine = None  # db engine
-    conn = None  # db connection
-    cursor = None  # db cursor
-    not_consumer_options: pd.DataFrame = None
-    consumer_options: pd.DataFrame = None
 
-    def init(self, year=2030, scenario='MMvIB', default_sector="Energie"):
+
+    def __init__(self, year=2030, scenario='MMvIB', default_sector="Energie"):
         self.year = year
         self.scenario = scenario
         self.default_sector = default_sector
+        self.df: pd.DataFrame = None  # df with ESDL as a table
+        self.carriers: pd.DataFrame = None  # df with carriers and prices
+        self.df_kpi: pd.DataFrame = None  # df with electricity and NG demand for Ameland
+        self.df_electricity: pd.DataFrame = None  # df with hourly import electricity prices for the Netherlands
+        self.engine = None  # db engine
+        self.conn = None  # db connection
+        self.cursor = None  # db cursor
+        self.not_consumer_options: pd.DataFrame = None
+        self.consumer_options: pd.DataFrame = None
+
 
     def __enter__(self):
         """
@@ -87,8 +90,8 @@ class OperaAccessImporter:
     @contextmanager
     def connect_to_access(self, access_file: str):
         #access_file = r'C:\data\git\aimms-adapter\esdl2opera_access\Opties_mmvib.mdb'
-        odbc_string = r'Driver={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=' + access_file + ';Pooling=False;'
-
+        # odbc_string = r'Driver={Microsoft Access Driver (*.mdb, *.accdb)};DBQ=' + access_file + ';Pooling=False;'
+        odbc_string = f"DRIVER={{Microsoft Access Driver (*.mdb, *.accdb)}};DBQ={access_file};"
         log.info(f"Connecting to database: {access_file}")
         
         connection_url = sa.engine.URL.create(
@@ -98,8 +101,7 @@ class OperaAccessImporter:
             
         try:    
             # Create an engine for the database connection
-            # Disable connection pooling by setting poolclass to NullPool
-            self.engine = sa.create_engine(connection_url, poolclass=NullPool)
+            self.engine = sa.create_engine(connection_url)
 
             # Connect to the engine
             self.conn = self.engine.raw_connection() # Raw DBAPI connection
@@ -112,8 +114,11 @@ class OperaAccessImporter:
             yield # Yield control to the block of code that uses this context manager
             
         except Exception as e:
-            print(f"Error connecting to the Access database: {e}")
+            print(f"Error connecting to the Access database: {e}", exc_info=True)
             raise # Raising the exception so that the caller can handle it
+
+        finally:
+            self.disconnect()
 
     def disconnect(self): 
         log.info("Disconnecting database")
@@ -140,23 +145,50 @@ class OperaAccessImporter:
             time.sleep(3) # Give some time for cleanup
 
         except Exception as e: 
-            log.error(f"Error during disconnect: {e}")
+            log.error(f"Error during disconnect: {e}", exc_info=True)
     
         # Optionally trigger garbage collection, but usually not necessary
-        garbage_collected = gc.collect()
-        log.info(f'amount of garbage collected is {garbage_collected}')
+        finally:
+            garbage_collected = gc.collect()
+            log.info(f'amount of garbage collected is {garbage_collected}')
 
+    def execute_query(self, query: str):
+        """Execute a single query and commit the transaction."""
+        try:
+            log.debug(f"Executing query: {query}")
+            self.cursor.execute(query)
+            self.conn.commit()
+        except Exception as ex:
+            log.error(f"Failed to execute query: {query}", exc_info=True)
+            raise ex  
+    
+    def fetch_query(self, query: str) -> pd.DataFrame:
+        """Fetch data from the database using a query."""
+        try:
+            log.debug(f"Fetching data with query: {query}")
+            return psql.read_sql(query, self.engine)
+        except Exception as ex:
+            log.error(f"Failed to fetch data with query: {query}", exc_info=True)
+            raise ex
 
-    def start_import(self, esdl_data_frame: pd.DataFrame, carriers: pd.DataFrame, access_database: str):
+    def start_import(self, esdl_data_frame: pd.DataFrame, 
+                     carriers: pd.DataFrame, 
+                     esdl_kpi: pd.DataFrame,
+                     hourly_electricity_price: pd.DataFrame,
+                     access_database: str):
         """
         Connects to database file and uses esdl-dataframe to create opera database
         :param esdl_data_frame: dataframe extracting all relevant info for all the assets in the ESDL
         :param carriers: dataframe describing the carriers in the ESDL
+        :param esdl_kpi: dataframe with KPI-related data obtained from the ESSIM model
+        :param hourly_electricity_price: dataframe with hourly national import electricity prices (from ESSIM)
         :param access_database: the path to the access database
         :return:
         """
         self.df = esdl_data_frame
         self.carriers = carriers
+        self.df_kpi = esdl_kpi
+        self.df_electricity = hourly_electricity_price
         is_consumer = self.df['category'] == 'Consumer'
         self.not_consumer_options = self.df[~is_consumer]
         self.consumer_options = self.df[is_consumer]
@@ -177,6 +209,12 @@ class OperaAccessImporter:
                 
                 self._update_option_related_tables()
                 log.info("Updated options-related tables successfully")
+
+                self._add_demand() # this is for KPI-related demand addition
+                log.info("Demand added successfully")
+
+                self._add_electricity_import_price() # this is for adding electricity import price
+                log.info("Electricity import price added successfully")
         
         except Exception as e: 
             log.error(f"Failed to connect to the Access database: {e}")           
@@ -725,4 +763,116 @@ class OperaAccessImporter:
 
         self.conn.commit()
 
+    def _add_demand(self):
+        """        
+        add electricity and NG demand to the final demand of the households sector, under the assumption
+        that the households sector is only responsible for the demand of these two carriers.
+        """
+        
+        """First, for Natural Gas"""
+        #query to fetch the demand value for Natural Gas from the EnergiebalansBaseline table
+        query = """
+                SELECT *FROM [EnergiebalansBaseline] WHERE [Baseline] = 'MMVIB' AND 
+                [Sector] = 'Huishoudens' AND [Energiedrager] = 'Aardgas'
+                """ 
+        
+        df = self.fetch_query(query)
 
+        # Kindly ensure that there is only one matching value for the demand of Natural Gas in 'df_kpi'
+        kpi_values = self.df_kpi.loc[self.df_kpi['carrier'] == 'Aardgas', 'demand']
+        if kpi_values.empty:
+            log.error("No matching demand values found for Aardgas")
+            return
+        elif len(kpi_values) > 1:
+            log.error("Multiple matching demand values found for Aardgas")
+            return
+        
+        kpi_value = kpi_values.iloc[0]
+
+        if not df.empty:
+            demand_value = df.iloc[0]['Finale vraag']
+            new_value = demand_value + kpi_value
+            # new_value = demand_value + 10     # for testing purposes
+            log.info(f"Updating demand value for Aardgas: {demand_value} -> {new_value}")
+            
+            # Update the Natural Gas demand value in the EnergiebalansBaseline table
+            update_query = """
+                            UPDATE [EnergiebalansBaseline] 
+                            SET [Finale vraag] = ? 
+                            WHERE
+                            [Baseline] = ? AND [Sector] = ? AND 
+                            [Energiedrager] = ?
+                            """
+            self.cursor.execute(update_query, (new_value, 'MMVIB', 'Huishoudens', 'Aardgas'))
+            log.info("Natural Gas demand updated successfully")
+        self.conn.commit()
+
+        
+        """Then, for Electricity"""
+        
+        query = """
+                SELECT *FROM [EnergiebalansBaseline] WHERE [Baseline] = 'MMVIB' AND 
+                [Sector] = 'Huishoudens' AND [Energiedrager] = 'Elektriciteit'
+                """
+        df = self.fetch_query(query)
+        log.info("Fetched Electricity demand successfully")
+
+        # Kindly ensure that there is only one matching value for the demand of Electricity in 'df_kpi'
+        kpi_values = self.df_kpi.loc[self.df_kpi['carrier'] == 'Electricity', 'demand']
+        if kpi_values.empty:
+            log.error("No matching demand values found for Electricity")
+            return
+        elif len(kpi_values) > 1:
+            log.error("Multiple matching demand values found for Electricity")
+            return
+        
+        kpi_value = kpi_values.iloc[0]
+
+        if not df.empty:
+            demand_value = df.iloc[0]['Finale vraag']
+            new_value = demand_value + kpi_value
+            # new_value = demand_value + 10     # for testing purposes
+            log.info(f"Updating demand value for electricity: {demand_value} -> {new_value}")
+            update_query = """
+                        UPDATE [EnergiebalansBaseline] SET [Finale vraag] = ? 
+                        WHERE 
+                        [Baseline] = ? AND [Sector] = ? 
+                        AND [Energiedrager] = ?
+                        """
+            self.cursor.execute(update_query, (new_value, 'MMVIB', 'Huishoudens', 'Elektriciteit'))
+            log.info("Electricity demand updated successfully")
+        self.conn.commit()
+        
+        # log.info(f"query: {query} \n df: {df} \n df_kpi: {self.df_kpi} \n row: {row}")
+
+    def _add_electricity_import_price(self):
+        """
+        Add electricity import price to the OPERA MS access database.
+        """
+
+        # Fetch the Hourly_prices_EnergyCarriers table from the database
+        query = """
+                SELECT * FROM [Hourly_prices_EnergyCarriers]
+                """
+        df_hourly_prices = self.fetch_query(query)
+        
+        # Ensure the 'uuren' column is of type int64
+        df_hourly_prices['uuren'] = df_hourly_prices['uuren'].astype('int64')   
+        
+        # Merge the DataFrame with the electricity prices with the Hourly_prices_EnergyCarriers table
+        df_merged = df_hourly_prices.merge(self.df_electricity, left_on='uuren', right_on='hour', how='left')
+
+        # Update the [Prijzen Uur] column with the 'price' column from df_electricity
+        df_hourly_prices['Prijzen Uur'] = df_merged['price']
+
+        # Update the Hourly_prices_EnergyCarriers table with the new prices
+        update_query = """
+                        UPDATE [Hourly_prices_EnergyCarriers] 
+                        SET [Prijzen Uur] = ?
+                        WHERE [uuren] = ?
+                        """
+        
+        for _, row in df_hourly_prices.iterrows():
+            self.cursor.execute(update_query, (row['Prijzen Uur'], row['uuren']))
+
+        self.conn.commit()

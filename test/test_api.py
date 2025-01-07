@@ -25,7 +25,8 @@ else:
     exit(1)
 
 post_body = {
-  "input_esdl_file_path": "opera-test/MACRO 16.esdl",
+  "input_esdl_file_path_1": "opera-test/MACRO 16.esdl",
+  "input_esdl_file_path_2": "opera-test/MACRO 18.esdl",
   "output_esdl_file_path": "opera-test/20231019 OperaOutput.esdl"
 }
 

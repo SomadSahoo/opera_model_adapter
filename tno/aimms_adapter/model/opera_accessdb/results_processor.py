@@ -25,7 +25,10 @@ class OperaResultsProcessor:
 
         es = self.esh.get_energy_system()
         es.description = es.description + "\nIncluding Opera results"
-        es.version = str(float(es.version) + 1.0)
+        if es.version is None:
+            es.version = "1.0"
+        else:
+            es.version = str(float(es.version) + 1.0)
         log.debug(f"Expecting Opera outputs in {abspath(output_path)}")
 
     def get_updated_energysystem(self):

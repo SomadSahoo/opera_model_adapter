@@ -21,7 +21,9 @@ The key dependencies are:
 
 ## Using the application
 
-The application can be run locally through two ways. The first is to run the `main` app present within the directory `..\tno\aimms_adapter\`. The second is to create a service that runs as a system service. The details of creating such a service is presented in the `.doc` file. 
+Before running the adapter services, make sure that the model registry and the database-Minio services are already running. Otherwise, you will encounter errors. 
+
+The application can be run locally through two ways. The first is to run the `main` app present within the directory `..\tno\aimms_adapter\`. The second is to create a service that runs as a system service. The details of creating such a service is presented in the `MOTER_services.docx` file. FYI: This file is for the MOTER adapter services, but works the same for the OPERA adapter. 
 
 
 Before running the application locally though, you are advised to create a virtual environment. Install the dependencies
@@ -32,6 +34,7 @@ through http://localhost:9300/openapi or http://localhost:9300/redoc.
 
 The local registry endpoint is http://localhost:9200/registry. This should be kept the same for all adapters. 
 
+The external URL for my set up, which is Windows-based OS, is http://host.docker.internal:9301. With only `localhost`, I was getting issues related to incompatibility as the orchestrator, which calls this service, runs on docker. In addition, this external URL does not cause any conflict when running the OPERA adapter as a standalone service. 
 
 
 ## Notable features

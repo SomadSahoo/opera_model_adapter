@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Tuple, Union, Optional, List
+from datetime import timedelta
 
 from esdl.esdl_handler import EnergySystemHandler
 from .unit import convert_to_unit, POWER_IN_GW, ENERGY_IN_PJ, COST_IN_MEur, POWER_IN_W, COST_IN_Eur_per_MWh, \
@@ -19,7 +20,7 @@ class OperaESDLParser:
     def __init__(self):
         self.esh = EnergySystemHandler()
 
-    def get_energy_system_Hander(self) -> EnergySystemHandler:
+    def get_energy_system_Handler(self) -> EnergySystemHandler:
         return self.esh
 
     def parse(self, esdl_string: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -139,6 +140,77 @@ class OperaESDLParser:
 
         print(df_carriers)
         return df, df_carriers
+
+    def parse_2(self, esdl_string) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Extracts kpis information and hourly electricity prices
+        """
+        self.esh.load_from_string(esdl_string)
+        df_kpis = pd.DataFrame({'name': pd.Series(dtype='str'),
+                            'id': pd.Series(dtype='str'),
+                            'demand': pd.Series(dtype='float'),
+                            'unit': pd.Series(dtype='str'),
+                            'carrier': pd.Series(dtype='str'),
+                            })
+        kpi_list: List[esdl.DoubleKPI] = self.esh.get_all_instances_of_type(esdl.DoubleKPI)
+        
+        kpi_data = []
+
+        for kpi in kpi_list:
+            if kpi.quantityAndUnit and kpi.quantityAndUnit.description is not None and kpi.quantityAndUnit.description != "Warmte":
+                    qau = kpi.quantityAndUnit
+                    demand = kpi.value
+                    target_unit = ENERGY_IN_PJ
+                    demand = convert_to_unit(demand, qau, target_unit)
+                    kpi_data.append({'name': kpi.name, 'id': kpi.id, 'demand': demand, 'unit': target_unit.description,
+                                    'carrier': kpi.quantityAndUnit.description})
+                   
+                    # print(f'KPI {kpi.name} has cost {demand} {target_unit.description}')
+        df_kpis = pd.concat([df_kpis, pd.DataFrame(kpi_data)], ignore_index=True)
+        print(df_kpis)
+        
+        # Extract Electricity hourly prices
+        df_electricity = pd.DataFrame({'date': pd.Series(dtype='str'),
+                                       'time': pd.Series(dtype='str'),
+                                       'hour': pd.Series(dtype='int'),
+                                       'price': pd.Series(dtype='float'),
+                                       'unit': pd.Series(dtype='str'),
+                                       })
+        electricity_prices: List[esdl.TimeSeriesProfile] = self.esh.get_all_instances_of_type(esdl.TimeSeriesProfile)
+        
+        electricity_import_price = []
+        
+        for electricity_price in electricity_prices:
+            date_time = electricity_price.startDateTime
+            print(date_time)
+            date = date_time.date()
+            time = date_time.time()
+            print(f"Date: {date}, Time: {time}")
+
+            hour = 0
+            for time_series in electricity_price.values:
+                date_time += timedelta(hours=1)
+                date = date_time.date()
+                time = date_time.time()
+                hour += 1
+                price = time_series
+                # date = time_series.start
+                # time = time_series.duration
+                # price = time_series.value
+                if electricity_price.profileQuantityAndUnit is not None:
+                    qau = electricity_price.profileQuantityAndUnit
+                    target_unit = COST_IN_Eur_per_GJ
+                    # price = convert_to_unit(price, qau, target_unit) # commented out as the conversion does not seem
+                    # to be working properly
+                    price = price / 3.6 # conversion from €/MWh to €/GJ
+                    unit = target_unit.description
+                electricity_import_price.append({'date': date, 'time': time, 'hour': hour,'price': price, 'unit': unit})
+
+        df_electricity = pd.concat([df_electricity, pd.DataFrame(electricity_import_price)], ignore_index=True)
+        print(df_electricity)
+        # print(df_kpis)
+        return df_kpis, df_electricity
+
 
 class ParseException(Exception):
     pass

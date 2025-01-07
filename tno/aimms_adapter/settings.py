@@ -75,7 +75,7 @@ class EnvSettings:
     @staticmethod
     def opera_output_folder():
         """Contains an 'empty' database to which the ESDL can be added for each run"""
-        return os.getenv("OPERA_OUTPUT_FOLDER", r"opera/CSV MMvIB 2030/")
+        return os.getenv("OPERA_OUTPUT_FOLDER", r"test/opera/Opera_20221212/CSV MMvIB 2030/")
 
 
 
