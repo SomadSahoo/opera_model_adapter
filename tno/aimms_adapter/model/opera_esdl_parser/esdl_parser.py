@@ -357,13 +357,6 @@ def extract_port_singlevalue_profiles(asset: esdl.EnergyAsset, target_unit:esdl.
 
     return singlevalue_in_list, singlevalue_out_list
 
-# TODO extract KPIs' information
-def extract_kpi(asset: esdl.DoubleKPI) -> Tuple[List[str], List[str], List[float]]: # we extract the values related to name, description, and value
-    kpi_values = asset.kpi
-    for kpi_value in kpi_values:
-        pass
-
-
 
 def find_opera_equivalent(asset: esdl.EnergyAsset) -> str | None:
     if isinstance(asset, esdl.Electrolyzer):

@@ -152,10 +152,10 @@ class Opera(Model):
         if aimms.returncode == 0:
             logger.info("AIMMS has finished, collecting results...")
             esh = parser.get_energy_system_Handler()
-            orp = OperaResultsProcessor(input_df=esdl_in_dataframe,
-                                        esh=esh,
-                                        output_path=EnvSettings.opera_output_folder())
-            orp.update_production_capacities()
+            # orp = OperaResultsProcessor(input_df=esdl_in_dataframe,
+            #                             esh=esh,
+            #                             output_path=EnvSettings.opera_output_folder())
+            # orp.update_production_capacities()
             updated_esdl_string = esh.to_string()
 
             return ModelRunInfo(
